@@ -1,0 +1,8 @@
+*.env
+*.Rhistory
+*~
+data/
+tmp/
+.Rproj.user
+*.log
+*.RData
