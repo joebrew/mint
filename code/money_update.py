@@ -3,6 +3,16 @@ import datetime
 import mintapi
 import pandas as pd
 import numpy as np
+import os
+import itertools
+import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.style.use('ggplot')
+os.chdir('/home/joebrew/Documents/mint/')
+
+
+pd.options.mode.chained_assignment = None
 
 # Get username and password
 fname = 'data/username_and_password.txt'
@@ -35,10 +45,64 @@ if time_since_last_update.seconds > (60 * 60 * 24):
 # # Get budget information
 # budgets = mint.get_budgets()
 
+#####
 # Get transactions
+#####
 transactions = mint.get_transactions()
 transactions = pd.DataFrame(transactions)
+# sort by date (in case not already)
+transactions = transactions.sort(columns = 'date', ascending = False)
 
+# Create column for total
+transactions['total'] = list(itertools.repeat(0, len(transactions)))
+
+# Make a "change" column
+transactions['change'] = list(itertools.repeat(0, len(transactions)))
+
+# How much now?
+transactions['total'][0] = checking['currentBalance']
+
+# How much at any given time?
+for i in range(1, len(transactions)):
+	val_before = transactions.ix[(i-1)]['total']
+	type_before = transactions.ix[(i-1)]['transaction_type']
+	change_before = transactions.ix[(i-1)]['amount']
+	if type_before == 'credit':
+		change_before = change_before * -1
+	#transactions['total'][i] = val_before + change_now
+	transactions.loc[i, 'total'] = val_before + change_before
+for i in range(0, len(transactions)):
+	type_now = transactions.ix[i]['transaction_type']
+	if type_now == 'debit':
+		transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] * -1
+	else:
+		transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] 
+
+# Make date a more reasonable object
+transactions['date'] = transactions['date'].astype(datetime.datetime)
+
+# Make a trend line
+trend_line = (transactions.total.iloc[0] - transactions.total.iloc[len(transactions) - 1]) / len(transactions)
+transactions['trend'] = list(itertools.repeat(0, len(transactions)))
+for i in list(reversed(range(0, len(transactions)))):
+	transactions.loc[i, 'trend'] = transactions.loc[len(transactions) - 1, 'total'] + (trend_line * (len(transactions) - i - 1))
+
+
+
+#####
+# MAKE TOTAL WORTH CHART
+#####
+
+
+
+plt.plot_date(transactions['date'], transactions['total'], marker=None, linestyle='-', color='r')
+plt.xlabel('Date')
+plt.ylabel('Dollars')
+plt.title('Savings rate: ' + str(round(trend_line, 2)) + ' dollars per day')
+plt.plot_date(transactions['date'], transactions['change'], marker='o', linestyle='-', color='b')
+plt.plot_date(transactions['date'], transactions['trend'], marker=None, linestyle='--', color='g')
+plt.legend()
+plt.show()
 #####
 # OUTPUT
 #####
