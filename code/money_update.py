@@ -7,12 +7,27 @@ import os
 import itertools
 import matplotlib.pyplot as plt
 import matplotlib
+import sys
+
 
 matplotlib.style.use('ggplot')
 os.chdir('/home/joebrew/Documents/mint/')
 
 
 pd.options.mode.chained_assignment = None
+
+
+#####
+# DATE OPTION FROM COMMAND LINE
+#####
+try:
+    start = sys.argv[1]
+except:
+    start = None
+try:
+	end = sys.argv[2]
+except:
+	end = None
 
 # Get username and password
 fname = 'data/username_and_password.txt'
@@ -79,30 +94,34 @@ for i in range(0, len(transactions)):
 		transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] 
 
 # Make date a more reasonable object
-transactions['date'] = transactions['date'].astype(datetime.datetime)
+#transactions['date'] = transactions['date'].astype(datetime.datetime)
+
+# Subset transactions based on start and end dates
+if start:
+	start = datetime.datetime.strptime(start, '%Y-%m-%d')
+else:
+	start = transactions['date'].min()
+if end:
+	end = datetime.datetime.strptime(end, '%Y-%m-%d')
+else:
+	end = transactions['date'].max()
+transactions_subset = transactions.loc[(transactions.date >= start) & (transactions.date <= end),]
 
 # Make a trend line
-trend_line = (transactions.total.iloc[0] - transactions.total.iloc[len(transactions) - 1]) / len(transactions)
-transactions['trend'] = list(itertools.repeat(0, len(transactions)))
-for i in list(reversed(range(0, len(transactions)))):
-	transactions.loc[i, 'trend'] = transactions.loc[len(transactions) - 1, 'total'] + (trend_line * (len(transactions) - i - 1))
+days_elapsed = (end - start).days + 1
+start_point = transactions_subset.total[len(transactions_subset.total)-1]
+end_point = transactions_subset.total.iloc[0]
+trend_line = (end_point - start_point) / days_elapsed
+transactions_subset['trend'] = list(itertools.repeat(0, len(transactions_subset)))
+unique_dates = transactions_subset.date.unique()
+for date in unique_dates:
+	time_ago = (date - unique_dates[len(unique_dates)-1])
+	days_ago = time_ago.astype('timedelta64[D]').astype(int)
+	transactions_subset.trend[transactions_subset['date'] == date] = start_point + (days_ago * trend_line)
 
+# Merge it all back together
+transactions = pd.merge(left = transactions, right = transactions_subset, how = 'left')
 
-
-#####
-# MAKE TOTAL WORTH CHART
-#####
-
-
-
-plt.plot_date(transactions['date'], transactions['total'], marker=None, linestyle='-', color='r')
-plt.xlabel('Date')
-plt.ylabel('Dollars')
-plt.title('Savings rate: ' + str(round(trend_line, 2)) + ' dollars per day')
-plt.plot_date(transactions['date'], transactions['change'], marker='o', linestyle='-', color='b')
-plt.plot_date(transactions['date'], transactions['trend'], marker=None, linestyle='--', color='g')
-plt.legend()
-plt.show()
 #####
 # OUTPUT
 #####
@@ -120,6 +139,9 @@ debits_last_week = int(debits[transactions['date'] >= a_week_ago].sum())
 
 credits_last_month = int(credits[transactions['date'] >= a_month_ago].sum())
 debits_last_month = int(debits[transactions['date'] >= a_month_ago].sum())
+
+credits_period = transactions_subset['amount'][transactions_subset['transaction_type'] == 'credit'].sum()
+debits_period = transactions_subset['amount'][transactions_subset['transaction_type'] == 'debit'].sum()
 
 ########
 print '\n\n\n\n\n'
@@ -155,4 +177,27 @@ print('------------------------------------')
 print 'YOU HAVE ' + str(checking['currentBalance']) + ' DOLLARS.'
 print 'At your current monthly spending rate, with no revenue at all, you would run out of money in ' + str(int(checking['currentBalance'] / (debits_last_month / 30))) + ' days.'
 print('_________________\n')
+
+# PERIOD
+daily_spending_period = debits_period / days_elapsed
+daily_income_period = credits_period / days_elapsed
+daily_savings_period = trend_line # why doesn't this equal: daily_income_perio
+print('------------------------------------')
+print 'You have earned ' + str(credits_period) + ' dollars over the green period (' + str(round(credits_period / days_elapsed, 2)) + ' per day).'
+print 'You have spent ' + str(debits_period) + ' dollars over the green period (' + str(round(debits_period / days_elapsed, 2)) + ' per day).'
+print 'Your green period lifestyle cost is ' + str(round(debits_period / days_elapsed * 365.25, 2)) + ' dollars per year'
+print 'Your green period income rate is ' + str(round(daily_income_period * 365.25, 2)) + ' dollars per year'
+print 'Your green period savings rate is ' + str(round(daily_savings_period * 365.25, 2)) + ' dollars per year (' + str(round(daily_savings_period, 2)) + ' per day)'
+
+#####
+# MAKE TOTAL WORTH CHART
+#####
+plt.plot_date(transactions['date'], transactions['total'], marker=None, linestyle='--', color='r')
+plt.xlabel('Date')
+plt.ylabel('Dollars')
+plt.title('Savings rate during green period: ' + str(round(trend_line, 2)) + ' dollars per day')
+plt.plot_date(transactions['date'], transactions['change'], marker='o', linestyle='-', color='b')
+plt.plot_date(transactions['date'], transactions['trend'], marker=None, linestyle='-', color='g')
+
+plt.show()
 
