@@ -10,7 +10,7 @@ import matplotlib
 import sys
 
 
-matplotlib.style.use('ggplot')
+# matplotlib.style.use('ggplot')
 os.chdir('/home/joebrew/Documents/mint/')
 
 
