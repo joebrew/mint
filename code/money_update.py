@@ -148,8 +148,17 @@ print '\n\n\n\n\n'
 for i in range(10):
 	print '.'
 
+# PRINT TABLE
+print('------------------------------------')
+print('TABLE')
+temp = transactions.loc[range(30)][['date', 'total', 'amount','description']]
+print temp.iloc[::-1]
+print('_________________\n\n')
+
+
 # WEEK
 print('------------------------------------')
+print('WEEK')
 print 'You earned ' + str(credits_last_week) + ' dollars over the last 7 days (' + str(credits_last_week / 7) + ' per day).'
 print 'You spent ' + str(debits_last_week) + ' dollars over the last 7 days (' + str(debits_last_week / 7) + ' per day).'
 net_change = credits_last_week - debits_last_week
@@ -158,10 +167,11 @@ if net_change >= 0:
 else:
 	direction = 'down'
 print 'So, you are ' + direction + ' ' + str(abs(net_change)) + ' on the week. (' + str(net_change / 7) + ' per day).'
-print('_________________\n')
+print('_________________\n\n')
 
 # MONTH
 print('------------------------------------')
+print('MONTH')
 print 'You have earned ' + str(credits_last_month) + ' dollars over the last 30 days (' + str(credits_last_month / 30) + ' per day).'
 print 'You have spent ' + str(debits_last_month) + ' dollars over the last 30 days (' + str(debits_last_month / 30) + ' per day).'
 net_change = credits_last_month - debits_last_month
@@ -170,19 +180,21 @@ if net_change >= 0:
 else:
 	direction = 'down'
 print 'So, you are ' + direction + ' ' + str(abs(net_change)) + ' on the month. (' + str(net_change / 30) + ' per day).'
-print('_________________\n')
+print('_________________\n\n')
 
 # Print current amount
+print('CURRENT STATUS')
 print('------------------------------------')
 print 'YOU HAVE ' + str(checking['currentBalance']) + ' DOLLARS.'
 print 'At your current monthly spending rate, with no revenue at all, you would run out of money in ' + str(int(checking['currentBalance'] / (debits_last_month / 30))) + ' days.'
-print('_________________\n')
+print('_________________\n\n')
 
 # PERIOD
 daily_spending_period = debits_period / days_elapsed
 daily_income_period = credits_period / days_elapsed
 daily_savings_period = trend_line # why doesn't this equal: daily_income_perio
 print('------------------------------------')
+print('PERIOD OVERVIEW')
 print 'You have earned ' + str(credits_period) + ' dollars over the green period (' + str(round(credits_period / days_elapsed, 2)) + ' per day).'
 print 'You have spent ' + str(debits_period) + ' dollars over the green period (' + str(round(debits_period / days_elapsed, 2)) + ' per day).'
 print 'Your green period lifestyle cost is ' + str(round(debits_period / days_elapsed * 365.25, 2)) + ' dollars per year'
@@ -199,9 +211,8 @@ plt.title('Savings rate during green period: ' + str(round(trend_line, 2)) + ' d
 plt.plot_date(transactions['date'], transactions['change'], marker='o', linestyle='-', color='b')
 plt.plot_date(transactions['date'], transactions['trend'], marker=None, linestyle='-', color='g')
 
-# PRINT TABLE
-temp = transactions.loc[range(30)][['date', 'total', 'amount','description']]
-print temp.iloc[::-1]
-
 plt.show()
+plt.savefig('temp.png') 
+os.system('eog temp.png')
+os.remove('temp.png')
 
