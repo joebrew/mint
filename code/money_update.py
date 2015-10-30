@@ -48,10 +48,10 @@ savings = accounts[1]
 time_since_last_update = datetime.datetime.now() - checking['lastUpdatedInDate']
 if time_since_last_update.seconds > (60 * 60 * 24):
 	# Initiate an account refresh
-	mint.initiate_account_refresh()
-	accounts = mint.get_accounts()
-	checking = accounts[0]
-	savings = accounts[1]
+    mint.initiate_account_refresh()
+    accounts = mint.get_accounts()
+    checking = accounts[0]
+    savings = accounts[1]
 
 # # Get extended account detail at the expense of speed - requires an
 # # additional API call for each account
@@ -198,6 +198,10 @@ plt.ylabel('Dollars')
 plt.title('Savings rate during green period: ' + str(round(trend_line, 2)) + ' dollars per day')
 plt.plot_date(transactions['date'], transactions['change'], marker='o', linestyle='-', color='b')
 plt.plot_date(transactions['date'], transactions['trend'], marker=None, linestyle='-', color='g')
+
+# PRINT TABLE
+temp = transactions.loc[range(30)][['date', 'total', 'amount','description']]
+print temp.iloc[::-1]
 
 plt.show()
 
