@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import sys
 
-
-# matplotlib.style.use('ggplot')
+matplotlib.style.use('ggplot')
 os.chdir('/home/joebrew/Documents/mint/')
 
 
@@ -151,7 +150,7 @@ for i in range(10):
 # PRINT TABLE
 print('------------------------------------')
 print('TABLE')
-temp = transactions.loc[range(30)][['date', 'total', 'amount','description']]
+temp = transactions.loc[range(30)][['date', 'total', 'change','description']]
 print temp.iloc[::-1]
 print('_________________\n\n')
 
