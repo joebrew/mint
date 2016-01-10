@@ -10,7 +10,7 @@ import matplotlib
 import sys
 
 matplotlib.style.use('ggplot')
-os.chdir('/home/joebrew/Documents/mint/')
+# os.chdir('/home/joebrew/Documents/mint/')
 
 
 pd.options.mode.chained_assignment = None
@@ -29,7 +29,7 @@ except:
 	end = None
 
 # Get username and password
-fname = 'data/username_and_password.txt'
+fname = 'credentials/username_and_password.txt'
 with open(fname) as f:
 	content = [x.strip('\n') for x in f.readlines()]
 email = content[0]
