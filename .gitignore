@@ -3,6 +3,7 @@
 *~
 data/
 tmp/
+credentials/
 .Rproj.user
 *.log
 *.RData
