@@ -6,3 +6,4 @@ tmp/
 .Rproj.user
 *.log
 *.RData
+*.png
