@@ -10,8 +10,6 @@ import matplotlib
 import sys
 
 matplotlib.style.use('ggplot')
-# os.chdir('/home/joebrew/Documents/mint/')
-
 
 pd.options.mode.chained_assignment = None
 
@@ -91,9 +89,6 @@ for i in range(0, len(transactions)):
 		transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] * -1
 	else:
 		transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] 
-
-# Make date a more reasonable object
-#transactions['date'] = transactions['date'].astype(datetime.datetime)
 
 # Subset transactions based on start and end dates
 if start:
