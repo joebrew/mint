@@ -37,13 +37,14 @@ password = content[1]
 mint = mintapi.Mint(email, password)
 
 # Get basic account information
-accounts = mint.get_accounts()
-checking = accounts[0]
-savings = accounts[1]
+accounts = mint.get_accounts(True)
+betterment = accounts[0]
+checking = accounts[1]
+savings = accounts[2]
 
-# If account hasn't been updated today, upddate
+# If account hasn't been updated in last hour, upddate
 time_since_last_update = datetime.datetime.now() - checking['lastUpdatedInDate']
-if time_since_last_update.seconds > (60 * 60 * 24):
+if time_since_last_update.seconds > (60 * 60):
 	# Initiate an account refresh
     mint.initiate_account_refresh()
     accounts = mint.get_accounts()
