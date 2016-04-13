@@ -9,6 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib
 import sys
 from ggplot import *
+import numpy as np
+import pylab
+import time
+import Quandl
+
 
 matplotlib.style.use('ggplot')
 
@@ -61,66 +66,236 @@ if time_since_last_update.seconds > (60 * 60):
 # budgets = mint.get_budgets()
 
 #####
-# Get transactions
+# READ IN SAVED DATA
 #####
-transactions = mint.get_transactions()
-transactions = pd.DataFrame(transactions)
-# sort by date
-transactions = transactions.sort(columns = 'date', ascending = False)
+saved_checking = pd.read_csv('data/campus_checking.csv')
+saved_savings = pd.read_csv('data/campus_savings.csv')
+saved_caixa = pd.read_csv('data/caixa.csv')
+saved_caixa_catalunya = pd.read_csv('data/caixa_catalunya.csv')
+saved_betterment = pd.read_csv('data/betterment.csv')
 
-# Create a "multiplier" (to get true transaction amount)
-transactions['multiplier'] = list(itertools.repeat(1, len(transactions)))
-transactions['multiplier'][transactions['transaction_type'] == 'debit'] = -1
+#####
+# Update saved data
+#####
+
+# Checking account (campus)
+today = time.strftime('%Y-%m-%d')
+if saved_checking['date'].max() < today:
+    saved_checking.loc[len(saved_checking)] = [today, checking['currentBalance']]
+
+# Savings account (campus)
+if saved_savings['date'].max() < today:
+    saved_savings.loc[len(saved_savings)] = [today, savings['currentBalance']]
+
+# Betterment
+if saved_betterment['date'].max() < today:
+    saved_betterment.loc[len(saved_betterment)] = [today, betterment['currentBalance']]
+
+# Caixa
+# (have to manually populate spreadsheet)
+print 'Caixa last updated :' + saved_caixa['date'].max()
+
+# Caixa catalunya
+# (have to manually populate spreadsheet)
+print 'Caixa Catalunya last updated :' + saved_caixa_catalunya['date'].max()
+
+#####
+# OVERWRITE WITH NEW DATA
+#####
+saved_checking.to_csv('data/campus_checking.csv', index = False)
+saved_savings.to_csv('data/campus_savings.csv', index = False)
+saved_betterment.to_csv('data/betterment.csv', index = False)
+
+#####
+# COMBINE ALL TOGETHER
+##### 
 
 # Create a dataframe of unique dates
-dates = pd.date_range(start = min(transactions['date']), end = max(transactions['date']))
+dates = pd.date_range(start = min(saved_checking['date']), end = max(saved_checking['date']))
 dates = pd.Series(dates)
 df = pd.DataFrame({'date' : dates})
 # Sort by date (in case not already)
-df = df.sort(columns = 'date', ascending = False)
+df = df.sort(columns = 'date', ascending = True)
 # Reset the index
 df = df.reset_index(drop=True)
 
-# Create column for total
-df['total'] = list(itertools.repeat(0, len(df)))
+# Format dates
+saved_savings['date'] = pd.to_datetime(saved_savings['date'])
+saved_checking['date'] = pd.to_datetime(saved_checking['date'])
+saved_caixa['date'] = pd.to_datetime(saved_caixa['date'])
+saved_caixa_catalunya['date'] = pd.to_datetime(saved_caixa_catalunya['date'])
+saved_betterment['date'] = pd.to_datetime(saved_betterment['date'])
 
-# Make a "change" column
-df['change'] = list(itertools.repeat(0, len(df)))
+# Forward fill NAs
+saved_savings = pd.merge(left = df, right = saved_savings, how = 'left', on = ['date'])
+saved_savings['amount'] = saved_savings['amount'].fillna(method='pad')
 
-# How much now?
-df['total'][0] = checking['currentBalance'] + betterment['currentBalance'] + savings['currentBalance']
+saved_checking = pd.merge(left = df, right = saved_checking, how = 'left', on = ['date'])
+saved_checking['amount'] = saved_checking['amount'].fillna(method='pad')
 
-# How much at any given time
-for i in range(1, len(df)):
-    print i
-    # Which date are we calculating for
-    the_date = df['date'][i]
-    # What transactions happened the next day
-    transactions_next_day = transactions[transactions['date']== df['date'][i-1]]
-    # What's the total change the next day
-    if(len(transactions_next_day['amount']) == 0):
-        change_next_day = 0
-    else:
-        change_next_day = sum(transactions_next_day['amount'] * transactions_next_day['multiplier'])
-    # Since we know the next day's change, the next day's
-    # final total plus the inverse of the change is this day's final total
-    df['total'][i] = df['total'][i-1] + (change_next_day * -1.0)
+saved_caixa = pd.merge(left = df, right = saved_caixa, how = 'left', on = ['date'])
+saved_caixa['amount'] = saved_caixa['amount'].fillna(method='pad')
+
+saved_caixa_catalunya = pd.merge(left = df, right = saved_caixa_catalunya, how = 'left', on = ['date'])
+saved_caixa_catalunya['amount'] = saved_caixa_catalunya['amount'].fillna(method='pad')
+
+saved_betterment = pd.merge(left = df, right = saved_betterment, how = 'left', on = ['date'])
+saved_betterment['amount'] = saved_betterment['amount'].fillna(method='pad')
+
+# Specify each data source
+saved_savings['source'] = 'Illiquid - US Savings'
+saved_checking['source'] = 'Liquid - US checking'
+saved_caixa['source'] = 'Liquid - La Caixa'
+saved_caixa_catalunya['source'] = 'Illiquid - Caixa Catalunya'
+saved_betterment['source'] = 'Illiquid - US investments'
+
+#####
+# CURRENCY CONVERSION
+##### 
+# Get quandl authentication
+fname = 'credentials/quandl_auth.txt'
+with open(fname) as f:
+    content = [x.strip('\n') for x in f.readlines()]
+
+# Specify Euros
+currency_code = 'BNP/USDEUR'
+temp = Quandl.get(currency_code, authtoken = fname)
+# Clean up / organize
+temp = pd.DataFrame(temp)
+temp['date'] = temp.index
+temp['usd'] = temp.ix[:,0:1]
+temp = temp.drop('USD/EUR', axis = 1)
+temp = temp.reset_index(drop = True)
+# Format date
+temp['date'] = pd.to_datetime(temp['date'])
+# Add a value for today if needed
+if temp['date'].max().strftime('%Y-%m-%d') < today:
+    temp.loc[len(temp)] = [today, temp['usd'][len(temp)-1]]
+temp['date'] = pd.to_datetime(temp['date'])
+
+# Convert dataframes in euros
+saved_caixa = pd.merge(left = saved_caixa, right = temp, how = 'left')
+saved_caixa['amount'] = saved_caixa['amount'] / saved_caixa['usd']
+saved_caixa = saved_caixa.drop('usd', axis = 1)
+
+saved_caixa_catalunya = pd.merge(left = saved_caixa_catalunya, right = temp, how = 'left')
+saved_caixa_catalunya['amount'] = saved_caixa_catalunya['amount'] / saved_caixa_catalunya['usd']
+saved_caixa_catalunya = saved_caixa_catalunya.drop('usd', axis = 1)
+
+# Combine
+combined = saved_savings.append(saved_checking)
+combined = combined.append(saved_caixa)
+combined = combined.append(saved_caixa_catalunya)
+combined = combined.append(saved_betterment)
+
+#####
+# VISUALIZE
+#####
+# p = ggplot(aes(x='date', fill='source', color='source', ymin=0, ymax='amount'), data = combined)
+# # p = p + geom_point()
+# p = p + geom_area(position='stack')
+# # p = p + geom_line()
+# plt = p.draw()
+# plt.savefig('temp.png') 
+# os.system('eog temp.png')
+
+# p = ggplot(aes(x='date', color='source', y='amount'), data = combined)
+# # p = p + geom_point()
+# p = p + geom_line(alpha=0.9)
+# # p = p + geom_line()
+# plt = p.draw()
+# plt.savefig('temp.png') 
+# os.system('eog temp.png')
+
+# ggplot(aes(x='date', ymin='total', ymax='total'), data=df) + geom_area()
 
 
-# Visualize
-plt.plot_date(df['date'], df['total'], marker = None)
-plt.show()
-plt.savefig('temp.png') 
+tableau20 = [(31, 119, 180), (174, 199, 232), 
+(255, 127, 14), (255, 187, 120), (44, 160, 44), 
+(152, 223, 138), (214, 39, 40), (255, 152, 150), 
+(148, 103, 189), (197, 176, 213), (140, 86, 75), 
+(196, 156, 148), (227, 119, 194), (247, 182, 210), 
+(127, 127, 127), (199, 199, 199), (188, 189, 34), 
+(219, 219, 141), (23, 190, 207), (158, 218, 229)]
+
+for i in range(len(tableau20)): 
+    r, g, b = tableau20[i] 
+    tableau20[i] = (r / 255., g / 255., b / 255.)
+
+# Cast data
+casted = pd.pivot_table(combined, values='amount', index = 'date', columns = 'source', aggfunc=np.mean)
+ax = casted.plot(kind='area', color = tableau20, alpha=.7);
+pylab.xlabel('Date')
+pylab.ylabel('Dollars')
+pylab.title('Net worth: ' + str(combined[combined['date'] == combined['date'].max()]['amount'].sum().round()) + ' dollars') 
+
+pylab.savefig('temp.png') 
 os.system('eog temp.png')
+os.remove('temp.png')
 
-p = ggplot(aes(x='date', y='total'), data = df)
-p = p + geom_point()
-p = p + geom_line()
-plt = p.draw()
-plt.savefig('temp.png') 
-os.system('eog temp.png')
 
-ggplot(aes(x='date', ymin='total', ymax='total'), data=df) + geom_area()
+# OLD STUFF
+# #####
+# # Get transactions
+# #####
+# transactions = mint.get_transactions()
+# transactions = pd.DataFrame(transactions)
+# # sort by date
+# transactions = transactions.sort(columns = 'date', ascending = False)
+
+# # Create a "multiplier" (to get true transaction amount)
+# transactions['multiplier'] = list(itertools.repeat(1, len(transactions)))
+# transactions['multiplier'][transactions['transaction_type'] == 'debit'] = -1
+
+# # Create a dataframe of unique dates
+# dates = pd.date_range(start = min(transactions['date']), end = max(transactions['date']))
+# dates = pd.Series(dates)
+# df = pd.DataFrame({'date' : dates})
+# # Sort by date (in case not already)
+# df = df.sort(columns = 'date', ascending = False)
+# # Reset the index
+# df = df.reset_index(drop=True)
+
+# # Create column for total
+# df['total'] = list(itertools.repeat(0, len(df)))
+
+# # Make a "change" column
+# df['change'] = list(itertools.repeat(0, len(df)))
+
+# # How much now?
+# df['total'][0] = checking['currentBalance'] + betterment['currentBalance'] + savings['currentBalance']
+
+# # How much at any given time
+# for i in range(1, len(df)):
+#     print i
+#     # Which date are we calculating for
+#     the_date = df['date'][i]
+#     # What transactions happened the next day
+#     transactions_next_day = transactions[transactions['date']== df['date'][i-1]]
+#     # What's the total change the next day
+#     if(len(transactions_next_day['amount']) == 0):
+#         change_next_day = 0
+#     else:
+#         change_next_day = sum(transactions_next_day['amount'] * transactions_next_day['multiplier'])
+#     # Since we know the next day's change, the next day's
+#     # final total plus the inverse of the change is this day's final total
+#     df['total'][i] = df['total'][i-1] + (change_next_day * -1.0)
+
+
+# # Visualize
+# plt.plot_date(df['date'], df['total'], marker = None)
+# plt.show()
+# plt.savefig('temp.png') 
+# os.system('eog temp.png')
+
+# p = ggplot(aes(x='date', y='total'), data = df)
+# p = p + geom_point()
+# p = p + geom_line()
+# plt = p.draw()
+# plt.savefig('temp.png') 
+# os.system('eog temp.png')
+
+# ggplot(aes(x='date', ymin='total', ymax='total'), data=df) + geom_area()
 
 
 # # How much at any given time?
