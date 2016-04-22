@@ -233,6 +233,13 @@ pylab.savefig('temp.png')
 os.system('eog temp.png')
 os.remove('temp.png')
 
+# # Visualize transactions
+# transactions = mint.get_transactions()
+# transactions = pd.DataFrame(transactions)
+# transactions = transactions.sort(columns = 'date', ascending = False)
+
+# print transactions
+
 
 # OLD STUFF
 # #####
