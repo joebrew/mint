@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import timestring
 import datetime
 import mintapi
 import pandas as pd
@@ -158,27 +159,41 @@ with open(fname) as f:
     content = [x.strip('\n') for x in f.readlines()]
 
 # Specify Euros
-currency_code = 'BNP/USDEUR'
+# currency_code = 'BNP/USDEUR'
+currency_code = 'CURRFX/USDEUR'
 temp = Quandl.get(currency_code, authtoken = fname)
 # Clean up / organize
 temp = pd.DataFrame(temp)
 temp['date'] = temp.index
 temp['usd'] = temp.ix[:,0:1]
-temp = temp.drop('USD/EUR', axis = 1)
+# temp = temp.drop('USD/EUR', axis = 1)
+temp = temp.drop(['Rate', 'High (est)', 'Low (est)'], axis = 1)
 temp = temp.reset_index(drop = True)
 # Format date
 temp['date'] = pd.to_datetime(temp['date'])
-# Add a value for today if needed
+# Add a value for new days if needed
+# WORKING HERE
+the_day = today
+while temp['date'].max().strftime('%Y-%m-%d') < the_day:
+    # Bring the day back one
+    the_day = str(timestring.Date(the_day) - 1)[:10]
+    temp.loc[len(temp)] = [the_day, temp['usd'][len(temp)-1]]
+    temp['date'] = pd.to_datetime(temp['date'])
+# If no value for today, add:
 if temp['date'].max().strftime('%Y-%m-%d') < today:
     temp.loc[len(temp)] = [today, temp['usd'][len(temp)-1]]
-temp['date'] = pd.to_datetime(temp['date'])
+    temp['date'] = pd.to_datetime(temp['date'])
 
 # Convert dataframes in euros
 saved_caixa = pd.merge(left = saved_caixa, right = temp, how = 'left')
+# forward fill NAs (weekends?)
+saved_caixa['usd'] = saved_caixa['usd'].fillna(method='pad')
 saved_caixa['amount'] = saved_caixa['amount'] / saved_caixa['usd']
 saved_caixa = saved_caixa.drop('usd', axis = 1)
 
 saved_caixa_catalunya = pd.merge(left = saved_caixa_catalunya, right = temp, how = 'left')
+# forward fill NAs (weekends?)
+saved_caixa_catalunya['usd'] = saved_caixa_catalunya['usd'].fillna(method='pad')
 saved_caixa_catalunya['amount'] = saved_caixa_catalunya['amount'] / saved_caixa_catalunya['usd']
 saved_caixa_catalunya = saved_caixa_catalunya.drop('usd', axis = 1)
 
