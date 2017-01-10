@@ -8,19 +8,66 @@ import os
 import itertools
 import matplotlib.pyplot as plt
 import matplotlib
+matplotlib.style.use('ggplot')
 import sys
 from ggplot import *
 import numpy as np
 import pylab
 import time
 import Quandl
+from selenium import webdriver
+driver_loc = "/usr/lib/chromium-browser/chromedriver"
+os.environ["webdriver.chrome.driver"] = driver_loc
+# driver = webdriver.Chrome(driver_loc)
 
-
-matplotlib.style.use('ggplot')
+# driver.get("http://stackoverflow.com")
+# driver.quit()
 
 pd.options.mode.chained_assignment = None
 
+# Modify original mintapi code to get to work locally
+def get_session_cookies2(username, password):
+        try:
+            from selenium import webdriver
+            driver = webdriver.Chrome(driver_loc)
+        except Exception as e:
+            raise RuntimeError("ius_session not specified, and was unable to load "
+                               "the chromedriver selenium plugin. Please ensure "
+                               "that the `selenium` and `chromedriver` packages "
+                               "are installed.\n\nThe original error message was: " +
+                               (e.args[0] if len(e.args) > 0 else 'No error message found.'))
 
+        driver.get("https://www.mint.com")
+        driver.implicitly_wait(20)  # seconds
+        driver.find_element_by_link_text("Log In").click()
+
+        driver.find_element_by_id("ius-userid").send_keys(username)
+        driver.find_element_by_id("ius-password").send_keys(password)
+        driver.find_element_by_id("ius-sign-in-submit-btn").submit()
+
+        # Wait until logged in, just in case we need to deal with MFA.
+        while not driver.current_url.startswith('https://mint.intuit.com/overview.event'):
+            time.sleep(1)
+
+        try:
+            return {
+                'ius_session': driver.get_cookie('ius_session')['value'],
+                'thx_guid': driver.get_cookie('thx_guid')['value']
+            }
+        finally:
+            driver.close()
+
+# Get username and password
+fname = 'credentials/username_and_password.txt'
+with open(fname) as f:
+    content = [x.strip('\n') for x in f.readlines()]
+email = content[0]
+password = content[1]
+
+# Get cookies
+# had to manually do stuff here to get ius_session, 
+# etc to work.
+cookies = get_session_cookies2(username = email, password = password)
 #####
 # DATE OPTION FROM COMMAND LINE
 #####
@@ -33,21 +80,20 @@ try:
 except:
 	end = None
 
-# Get username and password
-fname = 'credentials/username_and_password.txt'
-with open(fname) as f:
-	content = [x.strip('\n') for x in f.readlines()]
-email = content[0]
-password = content[1]
 
 # https://github.com/mrooney/mintapi
-mint = mintapi.Mint(email, password)
+# mint = mintapi.Mint(email, password)
+mint = mintapi.Mint(email = email, password = password, ius_session = cookies['ius_session'], thx_guid = cookies['thx_guid'])
 
 # Get basic account information
 accounts = mint.get_accounts(True)
 betterment = accounts[0]
 checking = accounts[1]
 savings = accounts[2]
+
+# Get net worth
+nw = mint.get_net_worth()
+print 'Net worth is ' + str(nw) + ' dollars'
 
 # If account hasn't been updated in last hour, upddate
 time_since_last_update = datetime.datetime.now() - checking['lastUpdatedInDate']
