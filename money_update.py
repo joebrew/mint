@@ -288,11 +288,11 @@ casted = pd.pivot_table(combined, values='amount', index = 'date', columns = 'so
 ax = casted.plot(kind='area', color = tableau20, alpha=.7);
 pylab.xlabel('Date')
 pylab.ylabel('Dollars')
-pylab.title('Net worth: ' + str(combined[combined['date'] == combined['date'].max()]['amount'].sum().round()) + ' dollars') 
+pylab.title('Net worth: ' + str(combined[combined['date'] == combined['date'].max()]['amount'].sum().round()) + ' dollars ' + 'on ' + str(datetime.datetime.now())) 
 
 pylab.savefig('temp.png') 
 os.system('eog temp.png')
-os.remove('temp.png')
+# os.remove('temp.png')
 
 # # Visualize transactions
 # transactions = mint.get_transactions()
