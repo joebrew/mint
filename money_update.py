@@ -14,8 +14,9 @@ from ggplot import *
 import numpy as np
 import pylab
 import time
-import Quandl
+import quandl as Quandl
 from selenium import webdriver
+from Cookie import SimpleCookie
 driver_loc = "/usr/lib/chromium-browser/chromedriver"
 os.environ["webdriver.chrome.driver"] = driver_loc
 # driver = webdriver.Chrome(driver_loc)
@@ -29,7 +30,8 @@ pd.options.mode.chained_assignment = None
 def get_session_cookies2(username, password):
         try:
             from selenium import webdriver
-            driver = webdriver.Chrome(driver_loc)
+            # driver = webdriver.Chrome(driver_loc)
+            driver = webdriver.Chrome()
         except Exception as e:
             raise RuntimeError("ius_session not specified, and was unable to load "
                                "the chromedriver selenium plugin. Please ensure "
@@ -76,9 +78,9 @@ try:
 except:
     start = None
 try:
-	end = sys.argv[2]
+    end = sys.argv[2]
 except:
-	end = None
+    end = None
 
 
 # https://github.com/mrooney/mintapi
@@ -93,12 +95,12 @@ savings = accounts[2]
 
 # Get net worth
 nw = mint.get_net_worth()
-print 'Net worth is ' + str(nw) + ' dollars'
+print 'Net worth in USA (savings + investments) is ' + str(nw) + ' dollars'
 
 # If account hasn't been updated in last hour, upddate
 time_since_last_update = datetime.datetime.now() - checking['lastUpdatedInDate']
 if time_since_last_update.seconds > (60 * 60):
-	# Initiate an account refresh
+    # Initiate an account refresh
     mint.initiate_account_refresh()
     accounts = mint.get_accounts()
     betterment = accounts[0]
@@ -120,6 +122,7 @@ saved_savings = pd.read_csv('data/campus_savings.csv')
 saved_caixa = pd.read_csv('data/caixa.csv')
 saved_caixa_catalunya = pd.read_csv('data/caixa_catalunya.csv')
 saved_betterment = pd.read_csv('data/betterment.csv')
+saved_ing = pd.read_csv('data/ing.csv')
 
 #####
 # Update saved data
@@ -146,6 +149,10 @@ print 'Caixa last updated :' + saved_caixa['date'].max()
 # (have to manually populate spreadsheet)
 print 'Caixa Catalunya last updated :' + saved_caixa_catalunya['date'].max()
 
+# ING
+# (have to manually populate spreadsheet)
+print 'ING last updated :' + saved_ing['date'].max()
+
 #####
 # OVERWRITE WITH NEW DATA
 #####
@@ -162,7 +169,7 @@ dates = pd.date_range(start = min(saved_checking['date']), end = max(saved_check
 dates = pd.Series(dates)
 df = pd.DataFrame({'date' : dates})
 # Sort by date (in case not already)
-df = df.sort(columns = 'date', ascending = True)
+df = df.sort_values(by = 'date', ascending = True)
 # Reset the index
 df = df.reset_index(drop=True)
 
@@ -172,6 +179,7 @@ saved_checking['date'] = pd.to_datetime(saved_checking['date'])
 saved_caixa['date'] = pd.to_datetime(saved_caixa['date'])
 saved_caixa_catalunya['date'] = pd.to_datetime(saved_caixa_catalunya['date'])
 saved_betterment['date'] = pd.to_datetime(saved_betterment['date'])
+saved_ing['date'] = pd.to_datetime(saved_ing['date'])
 
 # Forward fill NAs
 saved_savings = pd.merge(left = df, right = saved_savings, how = 'left', on = ['date'])
@@ -189,12 +197,16 @@ saved_caixa_catalunya['amount'] = saved_caixa_catalunya['amount'].fillna(method=
 saved_betterment = pd.merge(left = df, right = saved_betterment, how = 'left', on = ['date'])
 saved_betterment['amount'] = saved_betterment['amount'].fillna(method='pad')
 
+saved_ing = pd.merge(left = df, right = saved_ing, how = 'left', on = ['date'])
+saved_ing['amount'] = saved_ing['amount'].fillna(method='pad')
+
 # Specify each data source
 saved_savings['source'] = 'Illiquid - US Savings'
 saved_checking['source'] = 'Liquid - US checking'
 saved_caixa['source'] = 'Liquid - La Caixa'
 saved_caixa_catalunya['source'] = 'Illiquid - Caixa Catalunya'
 saved_betterment['source'] = 'Illiquid - US investments'
+saved_ing['source'] = 'Liquid - ING'
 
 #####
 # CURRENCY CONVERSION
@@ -207,7 +219,7 @@ with open(fname) as f:
 # Specify Euros
 # currency_code = 'BNP/USDEUR'
 currency_code = 'CURRFX/USDEUR'
-temp = Quandl.get(currency_code, authtoken = fname)
+temp = Quandl.get(currency_code, authtoken = ''.join(content))
 # Clean up / organize
 temp = pd.DataFrame(temp)
 temp['date'] = temp.index
@@ -243,11 +255,19 @@ saved_caixa_catalunya['usd'] = saved_caixa_catalunya['usd'].fillna(method='pad')
 saved_caixa_catalunya['amount'] = saved_caixa_catalunya['amount'] / saved_caixa_catalunya['usd']
 saved_caixa_catalunya = saved_caixa_catalunya.drop('usd', axis = 1)
 
+saved_ing = pd.merge(left = saved_ing, right = temp, how = 'left')
+# forward fill NAs (weekends?)
+saved_ing['usd'] = saved_ing['usd'].fillna(method='pad')
+saved_ing['amount'] = saved_ing['amount'] / saved_ing['usd']
+saved_ing = saved_ing.drop('usd', axis = 1)
+
+
 # Combine
 combined = saved_savings.append(saved_checking)
 combined = combined.append(saved_caixa)
 combined = combined.append(saved_caixa_catalunya)
 combined = combined.append(saved_betterment)
+combined = combined.append(saved_ing)
 
 #####
 # VISUALIZE
@@ -291,7 +311,10 @@ pylab.ylabel('Dollars')
 pylab.title('Net worth: ' + str(combined[combined['date'] == combined['date'].max()]['amount'].sum().round()) + ' dollars ' + 'on ' + str(datetime.datetime.now())) 
 
 pylab.savefig('temp.png') 
+print(combined[combined['date'] == max(combined['date'])])
 os.system('eog temp.png')
+
+
 # os.remove('temp.png')
 
 # # Visualize transactions
@@ -368,29 +391,29 @@ os.system('eog temp.png')
 
 # # How much at any given time?
 # for i in range(1, len(transactions)):
-# 	val_before = transactions.ix[(i-1)]['total']
-# 	type_before = transactions.ix[(i-1)]['transaction_type']
-# 	change_before = transactions.ix[(i-1)]['amount']
-# 	if type_before == 'credit':
-# 		change_before = change_before * -1
-# 	#transactions['total'][i] = val_before + change_now
-# 	transactions.loc[i, 'total'] = val_before + change_before
+#   val_before = transactions.ix[(i-1)]['total']
+#   type_before = transactions.ix[(i-1)]['transaction_type']
+#   change_before = transactions.ix[(i-1)]['amount']
+#   if type_before == 'credit':
+#       change_before = change_before * -1
+#   #transactions['total'][i] = val_before + change_now
+#   transactions.loc[i, 'total'] = val_before + change_before
 # for i in range(0, len(transactions)):
-# 	type_now = transactions.ix[i]['transaction_type']
-# 	if type_now == 'debit':
-# 		transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] * -1
-# 	else:
-# 		transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] 
+#   type_now = transactions.ix[i]['transaction_type']
+#   if type_now == 'debit':
+#       transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] * -1
+#   else:
+#       transactions.loc[i, 'change'] = transactions.loc[i, 'amount'] 
 
 # # Subset transactions based on start and end dates
 # if start:
-# 	start = datetime.datetime.strptime(start, '%Y-%m-%d')
+#   start = datetime.datetime.strptime(start, '%Y-%m-%d')
 # else:
-# 	start = transactions['date'].min()
+#   start = transactions['date'].min()
 # if end:
-# 	end = datetime.datetime.strptime(end, '%Y-%m-%d')
+#   end = datetime.datetime.strptime(end, '%Y-%m-%d')
 # else:
-# 	end = transactions['date'].max()
+#   end = transactions['date'].max()
 # transactions_subset = transactions.loc[(transactions.date >= start) & (transactions.date <= end),]
 
 # # Make a trend line
@@ -401,9 +424,9 @@ os.system('eog temp.png')
 # transactions_subset['trend'] = list(itertools.repeat(0, len(transactions_subset)))
 # unique_dates = transactions_subset.date.unique()
 # for date in unique_dates:
-# 	time_ago = (date - unique_dates[len(unique_dates)-1])
-# 	days_ago = time_ago.astype('timedelta64[D]').astype(int)
-# 	transactions_subset.trend[transactions_subset['date'] == date] = start_point + (days_ago * trend_line)
+#   time_ago = (date - unique_dates[len(unique_dates)-1])
+#   days_ago = time_ago.astype('timedelta64[D]').astype(int)
+#   transactions_subset.trend[transactions_subset['date'] == date] = start_point + (days_ago * trend_line)
 
 # # Merge it all back together
 # transactions = pd.merge(left = transactions, right = transactions_subset, how = 'left')
@@ -432,7 +455,7 @@ os.system('eog temp.png')
 # ########
 # print '\n\n\n\n\n'
 # for i in range(10):
-# 	print '.'
+#   print '.'
 
 # # PRINT TABLE
 # print('------------------------------------')
@@ -449,9 +472,9 @@ os.system('eog temp.png')
 # print 'You spent ' + str(debits_last_week) + ' dollars over the last 7 days (' + str(debits_last_week / 7) + ' per day).'
 # net_change = credits_last_week - debits_last_week
 # if net_change >= 0:
-# 	direction = 'up'
+#   direction = 'up'
 # else:
-# 	direction = 'down'
+#   direction = 'down'
 # print 'So, you are ' + direction + ' ' + str(abs(net_change)) + ' on the week. (' + str(net_change / 7) + ' per day).'
 # print('_________________\n\n')
 
@@ -462,9 +485,9 @@ os.system('eog temp.png')
 # print 'You have spent ' + str(debits_last_month) + ' dollars over the last 30 days (' + str(debits_last_month / 30) + ' per day).'
 # net_change = credits_last_month - debits_last_month
 # if net_change >= 0:
-# 	direction = 'up'
+#   direction = 'up'
 # else:
-# 	direction = 'down'
+#   direction = 'down'
 # print 'So, you are ' + direction + ' ' + str(abs(net_change)) + ' on the month. (' + str(net_change / 30) + ' per day).'
 # print('_________________\n\n')
 
