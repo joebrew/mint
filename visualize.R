@@ -91,12 +91,15 @@ for (i in 1:length(years)){
   sub_data <- sub_data %>%
     group_by(date) %>%
     summarise(usd = sum(usd))
-  saved <- sub_data$usd[2] - sub_data$usd[1]
+  saved <- sub_data$usd[2] - sub_data$usd[1] 
+  days <- as.numeric(sub_data$date[2] - sub_data$date[1]) + 1
   saved <- data.frame(date = as.Date(paste0(this_year, '-07-01')),
                       value = saved,
                       y = mean(sub_data$usd))
   word <- ifelse(saved$value > 0, 'Saved', 'Lost')
   saved$word <- word
+  saved$days <- days
+  saved$rate <- paste0('\n(', round(saved$value / saved$days, digits = 2), ' per day)')
   yl[[i]] <- saved
     g <- g +
     geom_line(data = sub_data,
@@ -121,15 +124,16 @@ for (i in 1:length(years)){
 yl <- bind_rows(yl)
 g +
   ylim(0, 85000) +
-  geom_label(data = yl,
+  geom_text(data = yl,
              aes(x = date,
                  y = 82000,
                  # y = y + 10000,
-                 label = paste0(format(date, '%Y'), ':\n', word, ' ', prettyNum(abs(round(value)), big.mark = ','), ' USD')),
-             size = 3,
+                 label = paste0(format(date, '%Y'), ':\n', word, ' ', prettyNum(abs(round(value)), big.mark = ','), ' USD', rate)),
+             size = 2.5,
              alpha = 0.8,
              lty = 2) +
   xlim(min(df$date),
+       # max(df$date))
        as.Date(paste0(max(df$year), '-12-31')))
 
 ggplot(data = df,
